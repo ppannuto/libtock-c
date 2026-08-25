@@ -228,8 +228,18 @@ override CPPFLAGS_gcc += -Wstack-usage=$(STACK_SIZE)
 # build a full PIC app for Tock. So, we split these out, and only include them
 # for architectures where we have full PIC support.
 override CPPFLAGS_PIC += \
-      -Wl,--emit-relocs\
       -fPIC
+
+# Linker flags for the architectures above. `-pie -Wl,--no-dynamic-linker`
+# link the app as a real self-relocating ET_DYN executable (the same
+# convention static-PIE binaries use), so the app is tagged with a standard
+# `.dynamic`/`.rel.dyn` relocation table instead of relying on a magic
+# sentinel link address (0x80000000) to signal "this app is PIC". This works
+# with the plain, unmodified generic ARM `ld` emulation -- no custom Tock
+# linker emulation is needed for it.
+override WLFLAGS_PIC += \
+      -pie\
+      -Wl,--no-dynamic-linker
 
 ################################################################################
 ##
@@ -633,6 +643,13 @@ override CFLAGS_cortex-m0 += $(CFLAGS_cortex-m)
 override CFLAGS_cortex-m3 += $(CFLAGS_cortex-m)
 override CFLAGS_cortex-m4 += $(CFLAGS_cortex-m)
 override CFLAGS_cortex-m7 += $(CFLAGS_cortex-m)
+
+# Use the PIC linker flags for each Cortex-M variant.
+override WLFLAGS_cortex-m  += $(WLFLAGS_PIC)
+override WLFLAGS_cortex-m0 += $(WLFLAGS_cortex-m)
+override WLFLAGS_cortex-m3 += $(WLFLAGS_cortex-m)
+override WLFLAGS_cortex-m4 += $(WLFLAGS_cortex-m)
+override WLFLAGS_cortex-m7 += $(WLFLAGS_cortex-m)
 
 override CPPFLAGS_cortex-m += \
       $(CPPFLAGS_toolchain_cortex-m)\

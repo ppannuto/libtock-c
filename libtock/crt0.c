@@ -264,35 +264,20 @@ __attribute__((noreturn))
 void _c_start_pic(uintptr_t app_start, uintptr_t mem_start) {
   struct hdr* myhdr = (struct hdr*)app_start;
 
-  // Fix up the Global Offset Table (GOT).
-
-  // Get the address in memory of where the table should go.
-  uintptr_t* got_start = (uintptr_t*)(myhdr->got_start + mem_start);
-  // Get the address in flash of where the table currently is.
-  uintptr_t* got_sym_start = (uintptr_t*)(myhdr->got_sym_start + app_start);
-  // Iterate all entries in the table and correct the addresses.
-  for (uint32_t i = 0; i < (myhdr->got_size / (uint32_t)sizeof(uint32_t)); i++) {
-    // Use the sentinel here. If the most significant bit is 0, then we know
-    // this offset is pointing to an address in memory. If the MSB is 1, then
-    // the offset refers to a value in flash.
-    if ((got_sym_start[i] & 0x80000000) == 0) {
-      // This is an address for something in memory, and we need to correct the
-      // address now that we know where this app is actually running in memory.
-      // This equation is really:
-      //
-      //     got_entry = (got_stored_entry - original_RAM_start_address) + actual_RAM_start_address
-      //
-      // However, we compiled the app where `original_RAM_start_address` is 0x0,
-      // so we can omit that.
-      got_start[i] = got_sym_start[i] + mem_start;
-    } else {
-      // Otherwise, this address refers to something in flash. Now that we know
-      // where the app has actually been loaded, we can reference from the
-      // actual `app_start` address. We also have to remove our fake flash
-      // address sentinel (by ORing with 0x80000000).
-      got_start[i] = (got_sym_start[i] ^ 0x80000000) + app_start;
-    }
-  }
+  // Copy the Global Offset Table (GOT) from flash into RAM as raw,
+  // uncorrected bytes. Correction happens below in the unified relocation
+  // pass, the same way `.data` is handled: copy first, fix up second. This
+  // used to be a dedicated loop that blindly sentinel-corrected every GOT
+  // slot directly from flash to RAM in one step, because the old toolchain's
+  // relocation records didn't reliably cover GOT entries. The standard
+  // `.rel.dyn` relocation table the linker now produces (via `ld -pie
+  // --no-dynamic-linker`) enumerates every RAM-resident pointer needing a
+  // fixup, GOT included, so a separate blind GOT pass is no longer needed --
+  // and keeping it would double-correct GOT slots that also appear in the
+  // relocation table below.
+  void* got_start     = (void*)(myhdr->got_start + mem_start);
+  void* got_sym_start = (void*)(myhdr->got_sym_start + app_start);
+  memcpy(got_start, got_sym_start, myhdr->got_size);
 
   // Load the data section from flash into RAM. We use the offsets from our
   // crt0 header so we know where this starts and where it should go.
@@ -305,8 +290,11 @@ void _c_start_pic(uintptr_t app_start, uintptr_t mem_start) {
   char* bss_start = (char*)(myhdr->bss_start + mem_start);
   memset(bss_start, 0, myhdr->bss_size);
 
-  // Do relative data address fixups. We know these entries are stored at the end
-  // of flash and can be located using the crt0 header.
+  // Do relative address fixups for every RAM-resident pointer needing one --
+  // this now covers both the GOT and `.data` entries copied above, since the
+  // linker's standard `.rel.dyn` section enumerates all of them together. We
+  // know these entries are stored at the end of flash and can be located
+  // using the crt0 header.
   //
   // The data structure used for these is `struct reldata`, where a 32 bit
   // length field is followed by that many entries. We iterate each entry and
