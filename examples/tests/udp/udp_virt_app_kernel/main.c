@@ -37,7 +37,7 @@ int main(void) {
   };
 
   int len = snprintf(packet, sizeof(packet), "Hello World - App/Kernel virt\n");
-  returncode_t result = libtocksync_udp_send(packet, len, &destination);
+  returncode_t result = libtocksync_udp_send(&handle, packet, len, &destination);
   assert(result != RETURNCODE_SUCCESS); // should fail because we have not bound
 
   if (DEBUG) {
@@ -70,7 +70,7 @@ int main(void) {
     print_ipv6(&(destination.addr));
     printf(" : %d\n", destination.port);
   }
-  result = libtocksync_udp_send(packet, len, &destination);
+  result = libtocksync_udp_send(&handle, packet, len, &destination);
   assert(result == RETURNCODE_SUCCESS); // send should succeed
 
   printf("App part of app/kernel test successful!\n");

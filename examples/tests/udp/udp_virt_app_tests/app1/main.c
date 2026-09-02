@@ -37,7 +37,7 @@ int main(void) {
   };
 
   int len = snprintf(packet, sizeof(packet), "Hello World - App1\n");
-  returncode_t result = libtocksync_udp_send(packet, len, &destination);
+  returncode_t result = libtocksync_udp_send(&handle, packet, len, &destination);
   assert(result != RETURNCODE_SUCCESS); // should fail because we have not bound
 
   if (DEBUG) {
@@ -56,7 +56,7 @@ int main(void) {
   // bound, now try sending a too-long packet
   int max_len = 0;
   libtock_udp_get_max_tx_len(&max_len);
-  result = libtocksync_udp_send(packet, max_len + 1, &destination);
+  result = libtocksync_udp_send(&handle, packet, max_len + 1, &destination);
   assert(result != RETURNCODE_SUCCESS); // should fail bc too long
 
   if (DEBUG) {
@@ -64,7 +64,7 @@ int main(void) {
     print_ipv6(&(destination.addr));
     printf(" : %d\n", destination.port);
   }
-  result = libtocksync_udp_send(packet, len, &destination);
+  result = libtocksync_udp_send(&handle, packet, len, &destination);
   assert(result == RETURNCODE_SUCCESS); // finally, a valid send attempt
 
   // of the two apps, app1 binds to port 80 first and should succeed
@@ -77,7 +77,7 @@ int main(void) {
 
   libtocksync_alarm_delay_ms(100); // to re-sync with other app
 
-  result = libtocksync_udp_send(packet, len, &destination);
+  result = libtocksync_udp_send(&handle, packet, len, &destination);
   assert(result == RETURNCODE_SUCCESS); // should succeed, both apps should be bound to different ports
 
   printf("App1 test success!\n");

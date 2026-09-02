@@ -73,7 +73,7 @@ int main(void) {
     printf("Sending packet (length %d) --> ", len);
     print_ipv6(&(destination.addr));
     printf(" : %d\n", destination.port);
-    ssize_t result = libtocksync_udp_send(packet, len, &destination);
+    ssize_t result = libtocksync_udp_send(&handle, packet, len, &destination);
 
     switch (result) {
       case RETURNCODE_SUCCESS:

@@ -1,5 +1,6 @@
 #include <string.h>
 
+#include "../defer.h"
 #include "syscalls/udp_syscalls.h"
 #include "udp.h"
 
@@ -23,16 +24,6 @@ returncode_t libtock_udp_bind(sock_handle_t* handle, sock_addr_t* addr, unsigned
   if (ret != RETURNCODE_SUCCESS) return ret;
 
   memcpy(buf_bind_cfg + bytes, &(handle->addr), bytes);
-
-  // Set up source address/port pair for sending. Store it in tx_cfg
-  // Notably, the pair chosen must match the address/port to which the
-  // app is bound, unless the kernel changes in the future to allow for
-  // sending from a port to which the app is not bound.
-  // HACK!! This is not static.
-  unsigned char BUF_TX_CFG[2 * sizeof(sock_addr_t)];
-  memcpy(BUF_TX_CFG, &(handle->addr), bytes);
-  ret = libtock_udp_set_readwrite_allow_cfg((void*) BUF_TX_CFG, 2 * bytes);
-  if (ret != RETURNCODE_SUCCESS) return ret;
 
   return libtock_udp_command_bind();
 }
@@ -67,22 +58,37 @@ static void udp_send_done_upcall(int                          status,
   cb(tock_status_to_returncode(status));
 }
 
-returncode_t libtock_udp_send(void* buf, size_t len,
+returncode_t libtock_udp_send(sock_handle_t* handle, void* buf, size_t len,
                               sock_addr_t* dst_addr, libtock_udp_callback_send_done cb) {
   returncode_t ret;
-  unsigned char BUF_TX_CFG[2 * sizeof(sock_addr_t)];
+  unsigned char buf_tx_cfg[2 * sizeof(sock_addr_t)];
 
-  // Set dest addr
-  // NOTE: bind() must be called previously for this to work
-  // If bind() has not been called, command(COMMAND_SEND) will return RESERVE
+  // The kernel requires the source half of this buffer to match the
+  // currently bound address/port; the destination half is where we
+  // actually want to send.
+  // NOTE: bind() must be called previously for this to work.
+  // If bind() has not been called, command(COMMAND_SEND) will return RESERVE.
   int bytes = sizeof(sock_addr_t);
-  memcpy(BUF_TX_CFG + bytes, dst_addr, bytes);
+  memcpy(buf_tx_cfg, &(handle->addr), bytes);
+  memcpy(buf_tx_cfg + bytes, dst_addr, bytes);
+
+  // This buffer is only read by the kernel synchronously, inside the
+  // command() call below, so it is safe for it to be stack-allocated here.
+  // defer ensures it is un-allowed on every return path, since it is about
+  // to go out of scope.
+  ret = libtock_udp_set_readwrite_allow_cfg((void*) buf_tx_cfg, 2 * bytes);
+  if (ret != RETURNCODE_SUCCESS) return ret;
+  defer { libtock_udp_set_readwrite_allow_cfg(NULL, 0);
+  }
 
   // Set message buffer
   ret = libtock_udp_set_readonly_allow(buf, len);
   if (ret != RETURNCODE_SUCCESS) return ret;
 
-  return libtock_udp_set_upcall_frame_transmitted(udp_send_done_upcall, cb);
+  ret = libtock_udp_set_upcall_frame_transmitted(udp_send_done_upcall, cb);
+  if (ret != RETURNCODE_SUCCESS) return ret;
+
+  return libtock_udp_command_send();
 }
 
 static void udp_recv_done_upcall(int                          length,

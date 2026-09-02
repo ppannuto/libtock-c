@@ -37,7 +37,7 @@ int main(void) {
   };
 
   int len = snprintf(packet, sizeof(packet), "Hello World - App2\n");
-  returncode_t result = libtocksync_udp_send(packet, len, &destination);
+  returncode_t result = libtocksync_udp_send(&handle, packet, len, &destination);
   assert(result != RETURNCODE_SUCCESS); // should fail because we have not bound
 
   if (DEBUG) {
@@ -56,7 +56,7 @@ int main(void) {
   // bound, now try sending a too-long packet
   int max_len = 0;
   libtock_udp_get_max_tx_len(&max_len);
-  result = libtocksync_udp_send(packet, max_len + 1, &destination);
+  result = libtocksync_udp_send(&handle, packet, max_len + 1, &destination);
   assert(result < 0); // should fail bc too long
 
   if (DEBUG) {
@@ -70,7 +70,7 @@ int main(void) {
   // so putting the delay after the send still makes it possible for this app to
   // bind first. Accordingly, put the delay before the send to ensure it sends second.
   libtocksync_alarm_delay_ms(10);
-  result = libtocksync_udp_send(packet, len, &destination);
+  result = libtocksync_udp_send(&handle, packet, len, &destination);
   assert(result == RETURNCODE_SUCCESS); // finally, a valid send attempt
 
   // of the two apps, app2 binds to port 80 second and should fail
@@ -89,7 +89,7 @@ int main(void) {
   bind_return = libtock_udp_bind(&handle, &addr3, BUF_BIND_CFG);
   assert(bind_return >= 0); // bind should succeed now
 
-  result = libtocksync_udp_send(packet, len, &destination);
+  result = libtocksync_udp_send(&handle, packet, len, &destination);
   assert(result == RETURNCODE_SUCCESS); // should succeed, both apps should be bound to different ports
   printf("App2 test success!\n");
 }

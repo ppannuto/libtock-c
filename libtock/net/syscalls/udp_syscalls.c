@@ -44,7 +44,12 @@ returncode_t libtock_udp_command_get_ifaces(size_t len) {
 
 returncode_t libtock_udp_command_send(void) {
   syscall_return_t cval = command(DRIVER_NUM_UDP, UDP_COMMAND_SEND, 0, 0);
-  return tock_command_return_novalue_to_returncode(cval);
+  // Command returns SUCCESS_U32, not plain SUCCESS: the value distinguishes
+  // whether the packet was already passed to the radio or merely queued,
+  // which callers don't need to know since either way they must wait for
+  // the transmitted callback.
+  uint32_t unused_tx_status;
+  return tock_command_return_u32_to_returncode(cval, &unused_tx_status);
 }
 
 returncode_t libtock_udp_command_bind(void) {

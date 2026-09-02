@@ -31,10 +31,6 @@ typedef void (*libtock_udp_callback_recv_done) (returncode_t, int);
 // Check if the driver exists.
 bool libtock_udp_exists(void);
 
-// Creates a new datagram socket bound to an address.
-// Returns 0 on success, negative on failure.
-returncode_t libtock_udp_create_socket(sock_handle_t* handle, sock_addr_t* addr);
-
 // Takes in an addess and a handle, and copies the address into
 // the handle.
 // Next, Binds to the address in handle if the address is not already
@@ -56,9 +52,11 @@ returncode_t libtock_udp_close(sock_handle_t* handle);
 // Returns 0 on successful bind, negative on failure.
 returncode_t libtock_udp_recv(void* buf, size_t len, libtock_udp_callback_recv_done cb);
 
-// Sends a message to the destination address asynchronously
+// Sends a message to the destination address asynchronously.
+// `handle` must be the handle previously bound via libtock_udp_bind();
+// packets are always sent from the bound source address/port.
 // The callback is passed the return code for the transmission.
-returncode_t libtock_udp_send(void* buf, size_t len,
+returncode_t libtock_udp_send(sock_handle_t* handle, void* buf, size_t len,
                               sock_addr_t* dst_addr, libtock_udp_callback_send_done cb);
 
 // Lists `len` interfaces at the array pointed to by `ifaces`.
