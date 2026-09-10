@@ -193,6 +193,24 @@ SECTIONS {
       *(.ARM.exidx* .gnu.linkonce.armexidx.*)
     } > FLASH
     PROVIDE_HIDDEN (__exidx_end = .);
+
+    /* When linking with `-pie` (see WLFLAGS_PIC in Configuration.mk), the
+     * linker generates a `.dynamic` section plus its usual companions
+     * (`.dynsym`, `.dynstr`, `.hash`) to describe the binary as a
+     * conventional dynamically-loadable ET_DYN executable. Tock has no
+     * dynamic loader and never reads any of these: elf2tab locates
+     * relocations directly via the `.rel.dyn` section by name, and crt0
+     * only ever consults the `.crt0_header` struct populated above. Discard
+     * them so they don't take up space in the flashed app.
+     */
+    /DISCARD/ :
+    {
+        *(.dynsym)
+        *(.dynstr)
+        *(.hash)
+        *(.gnu.hash)
+        *(.dynamic)
+    }
 }
 
 ASSERT(_got <= _bss, "
